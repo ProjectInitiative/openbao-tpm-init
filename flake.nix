@@ -21,7 +21,7 @@
           openbao-main = import ./openbao-main/openbao.nix { inherit pkgs; };
         });
 
-      apps = forAllSystems (system:
+      apps = nixpkgs.lib.recursiveUpdate (forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
@@ -73,58 +73,59 @@
               echo "🎉 All containers for ${system} built and loaded into Docker!"
             '');
           };
-        })
-      //
-      {
-        push-multi-arch = {
-          type = "app";
-          program = let pkgs = nixpkgs.legacyPackages."x86_64-linux"; in toString (pkgs.writeShellScriptBin "push-multi-arch" ''
-            set -e
-            set -o pipefail
+        }))
+      ({
+        "x86_64-linux" = {
+          push-multi-arch = {
+            type = "app";
+            program = let pkgs = nixpkgs.legacyPackages."x86_64-linux"; in toString (pkgs.writeShellScriptBin "push-multi-arch" ''
+              set -e
+              set -o pipefail
 
-            PACKAGE_NAME=$1
-            IMAGE_NAME=$2
-            OWNER=$3
-            TAG=''${4:-latest}
+              PACKAGE_NAME=$1
+              IMAGE_NAME=$2
+              OWNER=$3
+              TAG=''${4:-latest}
 
-            if [ -z "$PACKAGE_NAME" ] || [ -z "$IMAGE_NAME" ] || [ -z "$OWNER" ]; then
-              echo "Usage: $0 <package-name> <image-name> <owner> [tag]"
-              exit 1
-            fi
+              if [ -z "$PACKAGE_NAME" ] || [ -z "$IMAGE_NAME" ] || [ -z "$OWNER" ]; then
+                echo "Usage: $0 <package-name> <image-name> <owner> [tag]"
+                exit 1
+              fi
 
-            MANIFEST_LIST=()
-            for ARCH_SYSTEM in ${builtins.toString systems}; do
-              # Derive arch from system string, e.g., x86_64-linux -> amd64
-              ARCH=$(echo "$ARCH_SYSTEM" | sed 's/-linux//' | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
-              
-              echo "--- Building $PACKAGE_NAME for $ARCH_SYSTEM ($ARCH) ---"
-              nix build ".#packages.$ARCH_SYSTEM.$PACKAGE_NAME" -o "result-$PACKAGE_NAME-$ARCH"
-              
-              LOADED_IMAGE=$(docker load < "result-$PACKAGE_NAME-$ARCH" | grep "Loaded image" | sed 's/Loaded image: //')
-              echo "Loaded image: $LOADED_IMAGE"
+              MANIFEST_LIST=()
+              for ARCH_SYSTEM in ${builtins.toString systems}; do
+                # Derive arch from system string, e.g., x86_64-linux -> amd64
+                ARCH=$(echo "$ARCH_SYSTEM" | sed 's/-linux//' | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+                
+                echo "--- Building $PACKAGE_NAME for $ARCH_SYSTEM ($ARCH) ---"
+                nix build ".#packages.$ARCH_SYSTEM.$PACKAGE_NAME" -o "result-$PACKAGE_NAME-$ARCH"
+                
+                LOADED_IMAGE=$(docker load < "result-$PACKAGE_NAME-$ARCH" | grep "Loaded image" | sed 's/Loaded image: //')
+                echo "Loaded image: $LOADED_IMAGE"
 
-              TARGET_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG-$ARCH"
-              echo "Tagging $LOADED_IMAGE as $TARGET_TAG"
-              docker tag "$LOADED_IMAGE" "$TARGET_TAG"
-              
-              echo "Pushing $TARGET_TAG"
-              docker push "$TARGET_TAG"
+                TARGET_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG-$ARCH"
+                echo "Tagging $LOADED_IMAGE as $TARGET_TAG"
+                docker tag "$LOADED_IMAGE" "$TARGET_TAG"
+                
+                echo "Pushing $TARGET_TAG"
+                docker push "$TARGET_TAG"
 
-              MANIFEST_LIST+=("$TARGET_TAG")
-              
-              rm "result-$PACKAGE_NAME-$ARCH"
-            done
+                MANIFEST_LIST+=("$TARGET_TAG")
+                
+                rm "result-$PACKAGE_NAME-$ARCH"
+              done
 
-            MANIFEST_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG"
-            echo "--- Creating and pushing manifest for $MANIFEST_TAG ---"
-            echo "Manifest list: ''${MANIFEST_LIST[@]}"
-            docker manifest create "$MANIFEST_TAG" "''${MANIFEST_LIST[@]}"
-            docker manifest push "$MANIFEST_TAG"
+              MANIFEST_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG"
+              echo "--- Creating and pushing manifest for $MANIFEST_TAG ---"
+              echo "Manifest list: ''${MANIFEST_LIST[@]}"
+              docker manifest create "$MANIFEST_TAG" "''${MANIFEST_LIST[@]}"
+              docker manifest push "$MANIFEST_TAG"
 
-            echo "✅ Successfully pushed multi-arch image $MANIFEST_TAG"
-          '');
+              echo "✅ Successfully pushed multi-arch image $MANIFEST_TAG"
+            '');
+          };
         };
-      };
+      });
 
       devShells = forAllSystems (system:
         {
