@@ -78,7 +78,7 @@
         "x86_64-linux" = {
           push-multi-arch = {
             type = "app";
-            program = let pkgs = nixpkgs.legacyPackages."x86_64-linux"; in toString (pkgs.writeShellScriptBin "push-multi-arch" ''
+            program = let pkgs = nixpkgs.legacyPackages."x86_64-linux"; in toString (pkgs.writeShellScript "push-multi-arch" ''
               set -e
               set -o pipefail
 
