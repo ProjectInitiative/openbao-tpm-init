@@ -23,6 +23,12 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      - name: Configure Nix for QEMU
+        run: |
+          echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+          echo "extra-sandbox-paths = /usr/bin/qemu-aarch64-static" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
