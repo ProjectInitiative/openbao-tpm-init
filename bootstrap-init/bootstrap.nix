@@ -1,6 +1,4 @@
-{ pkgs ? import <nixpkgs> { }
-, pkgsLinux ? import <nixpkgs> { system = "x86_64-linux"; }
-}:
+{ pkgs }:
 
 let
   # Bootstrap script with all dependencies
@@ -70,23 +68,23 @@ let
     unset BOOTSTRAP_KEY
   '';
 
-in pkgsLinux.dockerTools.buildImage {
+in pkgs.dockerTools.buildImage {
   name = "openbao-bootstrap-init";
   tag = "latest";
   
   config = {
-    Cmd = [ "${pkgsLinux.bash}/bin/bash" "${bootstrapScript}" ];
+    Cmd = [ "${pkgs.bash}/bin/bash" "${bootstrapScript}" ];
     Env = [
-      "PATH=${pkgsLinux.lib.makeBinPath [
-        pkgsLinux.tpm2-tools
-        pkgsLinux.tpm2-pkcs11
-        pkgsLinux.softhsm
-        pkgsLinux.openssl
-        pkgsLinux.jq
-        pkgsLinux.coreutils
-        pkgsLinux.gnugrep
-        pkgsLinux.gawk
-        pkgsLinux.bash
+      "PATH=${pkgs.lib.makeBinPath [
+        pkgs.tpm2-tools
+        pkgs.tpm2-pkcs11
+        pkgs.softhsm
+        pkgs.openssl
+        pkgs.jq
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gawk
+        pkgs.bash
       ]}"
       "TSS2_TCTI=device:/dev/tpmrm0"
       "TPM2_PKCS11_STORE=/pkcs11-store"
@@ -96,19 +94,19 @@ in pkgsLinux.dockerTools.buildImage {
   };
   
   # Include necessary files and setup
-  copyToRoot = pkgsLinux.buildEnv {
+  copyToRoot = pkgs.buildEnv {
     name = "bootstrap-root";
     paths = [
       # Core dependencies
-      pkgsLinux.tpm2-tools
-      pkgsLinux.tpm2-pkcs11  
-      pkgsLinux.softhsm
-      pkgsLinux.openssl
-      pkgsLinux.jq
-      pkgsLinux.coreutils
-      pkgsLinux.gnugrep
-      pkgsLinux.gawk
-      pkgsLinux.bash
+      pkgs.tpm2-tools
+      pkgs.tpm2-pkcs11  
+      pkgs.softhsm
+      pkgs.openssl
+      pkgs.jq
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.gawk
+      pkgs.bash
     ];
     postBuild = ''
       # Create required directories

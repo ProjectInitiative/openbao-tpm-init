@@ -1,6 +1,4 @@
-{ pkgs ? import <nixpkgs> { }
-, pkgsLinux ? import <nixpkgs> { system = "x86_64-linux"; }
-}:
+{ pkgs }:
 
 let
   # Sidecar unsealer script
@@ -167,22 +165,22 @@ EOF
     main "$@"
   '';
 
-in pkgsLinux.dockerTools.buildImage {
+in pkgs.dockerTools.buildImage {
   name = "openbao-unsealer-sidecar";
   tag = "latest";
   
   config = {
-    Cmd = [ "${pkgsLinux.bash}/bin/bash" "${unsealerScript}" ];
+    Cmd = [ "${pkgs.bash}/bin/bash" "${unsealerScript}" ];
     Env = [
-      "PATH=${pkgsLinux.lib.makeBinPath [
-        pkgsLinux.tpm2-tools
-        pkgsLinux.curl
-        pkgsLinux.jq
-        pkgsLinux.kubectl
-        pkgsLinux.coreutils
-        pkgsLinux.gnugrep
-        pkgsLinux.gawk
-        pkgsLinux.bash
+      "PATH=${pkgs.lib.makeBinPath [
+        pkgs.tpm2-tools
+        pkgs.curl
+        pkgs.jq
+        pkgs.kubectl
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gawk
+        pkgs.bash
       ]}"
       "TSS2_TCTI=device:/dev/tpmrm0"
       "TPM2_PKCS11_STORE=/pkcs11-store"
@@ -193,18 +191,18 @@ in pkgsLinux.dockerTools.buildImage {
   };
   
   # Include necessary files and setup
-  copyToRoot = pkgsLinux.buildEnv {
+  copyToRoot = pkgs.buildEnv {
     name = "unsealer-root";
     paths = [
       # Core dependencies
-      pkgsLinux.tpm2-tools
-      pkgsLinux.curl
-      pkgsLinux.jq
-      pkgsLinux.kubectl
-      pkgsLinux.coreutils
-      pkgsLinux.gnugrep
-      pkgsLinux.gawk
-      pkgsLinux.bash
+      pkgs.tpm2-tools
+      pkgs.curl
+      pkgs.jq
+      pkgs.kubectl
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.gawk
+      pkgs.bash
     ];
     postBuild = ''
       # Create required directories

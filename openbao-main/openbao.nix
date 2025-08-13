@@ -1,13 +1,11 @@
-{ pkgs ? import <nixpkgs> { }
-, pkgsLinux ? import <nixpkgs> { system = "x86_64-linux"; }
-}:
+{ pkgs }:
 
 let
   # OpenBao with HSM support
-  openbao = pkgsLinux.openbao.override { withHsm = true; };
+  openbao = pkgs.openbao.override { withHsm = true; };
   
   # Enhanced entrypoint script that sources environment from sidecar
-  entrypoint = pkgsLinux.writeShellScript "entrypoint.sh" ''
+  entrypoint = pkgs.writeShellScript "entrypoint.sh" ''
     #!/bin/bash
     # Enhanced entrypoint with seal key support
 
@@ -48,7 +46,7 @@ let
   '';
 
   # Default OpenBao configuration
-  defaultConfig = pkgsLinux.writeText "bao.hcl" ''
+  defaultConfig = pkgs.writeText "bao.hcl" ''
     ui = true
     
     # Conditional seal configuration - will be activated when BAO_SEAL_KEY is present
@@ -77,7 +75,7 @@ let
   '';
 
 # Basic passwd/group files for the container
-  etcFiles = pkgsLinux.runCommand "openbao-etc-files" {} ''
+  etcFiles = pkgs.runCommand "openbao-etc-files" {} ''
     mkdir -p $out/etc
     echo "root:x:0:0:root:/root:/bin/sh" > $out/etc/passwd
     echo "nobody:x:65534:65534:nobody:/:" >> $out/etc/passwd
@@ -88,19 +86,19 @@ let
     echo "openbao:x:1000:" >> $out/etc/group
   '';
 
-in pkgsLinux.dockerTools.buildImage {
+in pkgs.dockerTools.buildImage {
   name = "openbao-with-seal-support";
   tag = "latest";
 
   config = {
     Cmd = [ "${entrypoint}" "bao" "server" "-config=/openbao/config/bao.hcl" ];
     Env = [
-      "PATH=${pkgsLinux.lib.makeBinPath [
+      "PATH=${pkgs.lib.makeBinPath [
         openbao
-        pkgsLinux.su-exec
-        pkgsLinux.shadow  # for adduser/addgroup
-        pkgsLinux.coreutils
-        pkgsLinux.bash
+        pkgs.su-exec
+        pkgs.shadow  # for adduser/addgroup
+        pkgs.coreutils
+        pkgs.bash
       ]}"
     ];
     WorkingDir = "/openbao";
@@ -112,15 +110,15 @@ in pkgsLinux.dockerTools.buildImage {
   };
 
   # Create directory structure and copy files
-  copyToRoot = pkgsLinux.buildEnv {
+  copyToRoot = pkgs.buildEnv {
     name = "openbao-root";
     paths = [
       # Core dependencies
       openbao
-      pkgsLinux.su-exec
-      pkgsLinux.shadow
-      pkgsLinux.coreutils
-      pkgsLinux.bash
+      pkgs.su-exec
+      pkgs.shadow
+      pkgs.coreutils
+      pkgs.bash
       etcFiles  # Add pre-built /etc files
     ];
     postBuild = ''
