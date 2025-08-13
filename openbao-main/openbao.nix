@@ -76,6 +76,18 @@ let
     }
   '';
 
+# Basic passwd/group files for the container
+  etcFiles = pkgsLinux.runCommand "openbao-etc-files" {} ''
+    mkdir -p $out/etc
+    echo "root:x:0:0:root:/root:/bin/sh" > $out/etc/passwd
+    echo "nobody:x:65534:65534:nobody:/:" >> $out/etc/passwd
+    echo "openbao:x:1000:1000:OpenBao:/home/openbao:/bin/sh" >> $out/etc/passwd
+    
+    echo "root:x:0:" > $out/etc/group
+    echo "nobody:x:65534:" >> $out/etc/group
+    echo "openbao:x:1000:" >> $out/etc/group
+  '';
+
 in pkgsLinux.dockerTools.buildImage {
   name = "openbao-with-seal-support";
   tag = "latest";
@@ -109,12 +121,12 @@ in pkgsLinux.dockerTools.buildImage {
       pkgsLinux.shadow
       pkgsLinux.coreutils
       pkgsLinux.bash
+      etcFiles  # Add pre-built /etc files
     ];
     postBuild = ''
       # Create directory structure
       mkdir -p $out/openbao/{data,logs,config}
       mkdir -p $out/shared
-      mkdir -p $out/etc
       
       # Copy default configuration
       cp ${defaultConfig} $out/openbao/config/bao.hcl
@@ -122,13 +134,6 @@ in pkgsLinux.dockerTools.buildImage {
       # Copy entrypoint script
       cp ${entrypoint} $out/entrypoint.sh
       chmod +x $out/entrypoint.sh
-      
-      # Create basic passwd/group files (will be enhanced at runtime)
-      # echo "root:x:0:0:root:/root:/bin/sh" > $out/etc/passwd
-      # echo "openbao:x:1000:1000:OpenBao:/home/openbao:/bin/sh" >> $out/etc/passwd
-      
-      # echo "root:x:0:" > $out/etc/group
-      # echo "openbao:x:1000:" >> $out/etc/group
     '';
   };
 }

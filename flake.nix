@@ -77,6 +77,7 @@
           build-bootstrap = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-bootstrap" ''
+              set -e
               echo "Building bootstrap init container..."
               nix build .#bootstrap-init
               echo "Loading into Docker..."
@@ -88,6 +89,7 @@
           build-sidecar = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-sidecar" ''
+              set -e
               echo "Building unsealer sidecar container..."
               nix build .#unsealer-sidecar
               echo "Loading into Docker..."
@@ -99,6 +101,7 @@
           build-main = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-main" ''
+              set -e
               echo "Building OpenBao main container..."
               nix build .#openbao-main
               echo "Loading into Docker..."
@@ -110,6 +113,7 @@
           build-all = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-all" ''
+              set -e
               echo "Building all containers..."
               nix build .#bootstrap-init
               docker load < result
