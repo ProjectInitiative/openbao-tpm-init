@@ -1,9 +1,22 @@
 { pkgs }:
 
 let
-  # OpenBao with HSM support
-  openbao = pkgs.openbao.override { withHsm = true; };
+  # OpenBao override with HSM + source pinned to a newer commit/tag
+  openbao = (pkgs.openbao.override {
+    withHsm = true;
+    withUi = true;
+  }).overrideAttrs (old: rec {
+    version = "unstable-2025-08-25";
 
+    src = pkgs.fetchFromGitHub {
+      owner = "openbao";
+      repo = "openbao";
+      rev = "6d1e0edaf167fac0bc122dd956bb5a439d8782ed";
+      hash = "sha256-dZR8LkPILcnKy1peYIqu273FUTqUgV2nxV0d4lW6ilM=";
+    };
+
+    vendorHash = "sha256-AA63G9Jq6RW7Ru62nqhPlIqF+hx4k2bX8q2SK8MA5sc=";
+  });
   # This wrapper script becomes the container's main entrypoint.
   # It exists to work around a hardcoded command and config path in the official Helm chart.
   wrapperEntrypoint = pkgs.writeShellScript "docker-entrypoint.sh" ''
