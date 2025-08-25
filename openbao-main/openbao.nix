@@ -106,7 +106,6 @@ in pkgs.dockerTools.buildImage {
   tag = "latest";
 
   config = {
-    Cmd = [ "${entrypoint}" "bao" "server" "-config=/openbao/config/bao.hcl" ];
     Env = [
       "PATH=${pkgs.lib.makeBinPath [
         openbao
@@ -147,18 +146,13 @@ in pkgs.dockerTools.buildImage {
       # Copy default configuration
       cp ${defaultConfig} $out/openbao/config/bao.hcl
       
-      # Copy our real entrypoint
+      # Copy our real entrypoint (now handled in postBuild instead of paths)
       cp ${entrypoint} $out/entrypoint.sh
       chmod +x $out/entrypoint.sh
 
       # Copy the wrapper entrypoint to the location the Helm chart expects
       mkdir -p $out/usr/local/bin
       cp ${wrapperEntrypoint} $out/usr/local/bin/docker-entrypoint.sh
-      chmod +x $out/usr/local/bin/docker-entrypoint.sh
-
-      # Create a dummy docker-entrypoint.sh to satisfy the bao binary's expectations
-      mkdir -p $out/usr/local/bin
-      echo "#!/bin/sh\nexec \"\$@\"" > $out/usr/local/bin/docker-entrypoint.sh
       chmod +x $out/usr/local/bin/docker-entrypoint.sh
     '';
   };
