@@ -6,7 +6,7 @@ let
     #!/bin/bash
     # unsealer-script.sh - TPM-based auto-unsealer sidecar
 
-    set -e
+    set -euo pipefail
 
     TPM_STORE="''${TPM2_PKCS11_STORE:?}"
     PRIMARY_CTX_PATH="''${TPM_STORE}/primary.ctx"
@@ -21,22 +21,22 @@ let
     POD_NAME="''${POD_NAME:?POD_NAME must be set}"
     NAMESPACE="''${NAMESPACE:?NAMESPACE must be set}"
 
-    echo "🚀 Starting OpenBao unsealer sidecar for pod: $POD_NAME"
+    echo "🚀 Starting OpenBao unsealer sidecar for pod: $POD_NAME" >&2
 
     # Wait for OpenBao main container to start
     wait_for_openbao() {
-        echo "⏳ Waiting for OpenBao to start..."
+        echo "⏳ Waiting for OpenBao to start..." >&2
         local attempts=0
         while ! curl -s "''${VAULT_ADDR:-http://localhost:8200}/v1/sys/health" >/dev/null 2>&1; do
             if [ $attempts -ge 60 ]; then
-                echo "❌ Timeout waiting for OpenBao to start"
+                echo "❌ Timeout waiting for OpenBao to start" >&2
                 exit 1
             fi
-            echo "   Attempt $((attempts + 1))/60..."
+            echo "   Attempt $((attempts + 1))/60..." >&2
             sleep 5
             attempts=$((attempts + 1))
         done
-        echo "✅ OpenBao is responding"
+        echo "✅ OpenBao is responding" >&2
     }
 
     # Check if vault is initialized
@@ -48,32 +48,37 @@ let
     # Decrypt bootstrap key using TPM
     decrypt_bootstrap_key() {
         if [ ! -f "$INIT_FLAG" ] || [ ! -f "$BOOTSTRAP_SEAL_PRIV" ]; then
-            echo "❌ Bootstrap initialization not found"
+            echo "❌ Bootstrap initialization not found" >&2
             return 1
         fi
         
-        echo "🔓 Decrypting bootstrap seal key using TPM..."
+        echo "🔓 Decrypting bootstrap seal key using TPM..." >&2
         local sealed_ctx="/tmp/sealed_bootstrap.ctx"
         
-        # Load the sealed object
-        tpm2_load -T "$TSS2_TCTI" -C "$PRIMARY_CTX_PATH" \
+        # Load the sealed object (no stdout leakage)
+        if ! tpm2_load -T "$TSS2_TCTI" -C "$PRIMARY_CTX_PATH" \
             -u "$BOOTSTRAP_SEAL_PUB" -r "$BOOTSTRAP_SEAL_PRIV" \
-            -c "$sealed_ctx" \
-            || { echo "❌ Failed to load sealed object"; return 1; }
+            -c "$sealed_ctx" >/dev/null; then
+            echo "❌ Failed to load sealed object" >&2
+            return 1
+        fi
         
-        # Unseal the key
-        local key=$(tpm2_unseal -T "$TSS2_TCTI" -c "$sealed_ctx") \
-            || { echo "❌ Failed to unseal bootstrap key"; rm -f "$sealed_ctx"; return 1; }
+        # Unseal the key (only output raw key to stdout)
+        if ! key=$(tpm2_unseal -T "$TSS2_TCTI" -c "$sealed_ctx"); then
+            echo "❌ Failed to unseal bootstrap key" >&2
+            rm -f "$sealed_ctx"
+            return 1
+        fi
         
         rm -f "$sealed_ctx"
-        echo "$key"
+        printf "%s" "$key"
     }
 
     # Inject seal key into OpenBao environment
     inject_seal_key() {
         local key="$1"
         
-        echo "💉 Injecting seal key into OpenBao environment..."
+        echo "💉 Injecting seal key into OpenBao environment..." >&2
         mkdir -p "$(dirname "$ENV_FILE")"
         
         # Write environment file that OpenBao will source
@@ -82,12 +87,12 @@ export BAO_SEAL_KEY="$key"
 EOF
         
         chmod 600 "$ENV_FILE"
-        echo "✅ Seal key injected to $ENV_FILE"
+        echo "✅ Seal key injected to $ENV_FILE" >&2
     }
 
     # Monitor cluster health and decide when to clean up
     monitor_and_cleanup() {
-        echo "👀 Monitoring cluster health..."
+        echo "👀 Monitoring cluster health..." >&2
         local healthy_count=0
         local required_healthy_cycles=6  # 3 minutes of consistent health
         
@@ -98,20 +103,20 @@ EOF
                 
                 if [ "$is_sealed" = "false" ]; then
                     healthy_count=$((healthy_count + 1))
-                    echo "✅ Vault healthy ($healthy_count/$required_healthy_cycles)"
+                    echo "✅ Vault healthy ($healthy_count/$required_healthy_cycles)" >&2
                     
                     if [ $healthy_count -ge $required_healthy_cycles ]; then
-                        echo "🎉 Cluster appears stable, initiating cleanup..."
+                        echo "🎉 Cluster appears stable, initiating cleanup..." >&2
                         cleanup_bootstrap_secret
                         return 0
                     fi
                 else
                     healthy_count=0
-                    echo "⚠️ Vault is sealed, resetting health counter"
+                    echo "⚠️ Vault is sealed, resetting health counter" >&2
                 fi
             else
                 healthy_count=0
-                echo "⚠️ Vault not initialized, waiting..."
+                echo "⚠️ Vault not initialized, waiting..." >&2
             fi
             
             sleep 30
@@ -120,19 +125,22 @@ EOF
 
     # Clean up bootstrap secret from Kubernetes
     cleanup_bootstrap_secret() {
-        echo "🧹 Attempting to clean up bootstrap secret..."
+        echo "🧹 Attempting to clean up bootstrap secret..." >&2
         
         if kubectl get secret openbao-bootstrap-seal-key -n "$NAMESPACE" >/dev/null 2>&1; then
-            kubectl delete secret openbao-bootstrap-seal-key -n "$NAMESPACE" \
-                && echo "✅ Bootstrap secret deleted successfully" \
-                || echo "⚠️ Failed to delete bootstrap secret (may already be deleted)"
+            if kubectl delete secret openbao-bootstrap-seal-key -n "$NAMESPACE" >/dev/null 2>&1; then
+                echo "✅ Bootstrap secret deleted successfully" >&2
+            else
+                echo "⚠️ Failed to delete bootstrap secret (may already be deleted)" >&2
+            fi
         else
-            echo "ℹ️ Bootstrap secret already deleted or not found"
+            echo "ℹ️ Bootstrap secret already deleted or not found" >&2
         fi
         
         # Clear the environment file
         if [ -f "$ENV_FILE" ]; then
-            rm -f "$ENV_FILE" && echo "✅ Environment file cleared"
+            rm -f "$ENV_FILE"
+            echo "✅ Environment file cleared" >&2
         fi
     }
 
@@ -140,7 +148,7 @@ EOF
     main() {
         # Decrypt the bootstrap key
         if ! DECRYPTED_KEY=$(decrypt_bootstrap_key); then
-            echo "❌ Failed to decrypt bootstrap key"
+            echo "❌ Failed to decrypt bootstrap key" >&2
             exit 1
         fi
         
@@ -153,11 +161,11 @@ EOF
         # Monitor and cleanup
         monitor_and_cleanup
         
-        echo "✅ Sidecar job completed successfully"
+        echo "✅ Sidecar job completed successfully" >&2
     }
 
     # Handle cleanup on exit
-    trap 'echo "🛑 Sidecar shutting down..."; unset DECRYPTED_KEY 2>/dev/null || true; exit' INT TERM
+    trap 'echo "🛑 Sidecar shutting down..." >&2; unset DECRYPTED_KEY 2>/dev/null || true; exit' INT TERM
 
     main "$@"
   '';
@@ -191,7 +199,6 @@ in pkgs.dockerTools.buildImage {
   copyToRoot = pkgs.buildEnv {
     name = "unsealer-root";
     paths = [
-      # Core dependencies
       pkgs.tpm2-tools
       pkgs.curl
       pkgs.jq
@@ -202,12 +209,10 @@ in pkgs.dockerTools.buildImage {
       pkgs.bash
     ];
     postBuild = ''
-      # Create required directories
       mkdir -p $out/pkcs11-store
       mkdir -p $out/shared
       mkdir -p $out/tmp
       
-      # Copy unsealer script
       cp ${unsealerScript} $out/unsealer-script.sh
       chmod +x $out/unsealer-script.sh
     '';

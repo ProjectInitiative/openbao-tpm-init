@@ -58,8 +58,9 @@ server:
         
         # This seal is activated by the `BAO_SEAL_KEY` environment variable,
         # which is provided by the unsealer-sidecar.
-        seal "aes-gcm" {
-          # Key is provided by the sidecar via an environment variable
+        seal "static" {
+          current_key_id = "tpm-seal-key-1"
+          current_key = "env://BAO_SEAL_KEY?encoding=base64"
         }
 
   # A persistent volume is required to store the TPM-encrypted seal key.
