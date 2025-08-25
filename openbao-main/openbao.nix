@@ -24,14 +24,17 @@ let
 
     echo "🚀 Starting OpenBao with seal support..."
 
-    # Source seal key from sidecar if available
-    if [ -f "/shared/openbao.env" ]; then
-      echo "📥 Loading seal configuration from sidecar..."
-      source /shared/openbao.env
-      echo "✅ Seal key loaded (type: ''${BAO_SEAL_TYPE:-unknown})"
-    else
-      echo "ℹ️ No seal configuration found, using manual unsealing"
-    fi
+    ENV_FILE="/shared/openbao.env"
+    echo "⏳ Waiting for seal key from sidecar at $ENV_FILE..."
+    while [ ! -f "$ENV_FILE" ]; do
+      sleep 2
+    done
+    echo "✅ Seal key file found!"
+
+    # Source seal key from sidecar
+    echo "📥 Loading seal configuration from sidecar..."
+    source "$ENV_FILE"
+    echo "✅ Seal key loaded (type: ''${BAO_SEAL_TYPE:-unknown})"
 
     # Prepare environment as root if needed
     if [ "$(id -u)" = '0' ]; then

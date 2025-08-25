@@ -139,8 +139,6 @@ EOF
 
     # Main execution
     main() {
-        wait_for_openbao
-        
         # Decrypt the bootstrap key
         if ! DECRYPTED_KEY=$(decrypt_bootstrap_key); then
             echo "❌ Failed to decrypt bootstrap key"
