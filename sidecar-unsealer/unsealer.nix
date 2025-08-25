@@ -79,7 +79,6 @@ let
         # Write environment file that OpenBao will source
         cat > "$ENV_FILE" << EOF
 export BAO_SEAL_KEY="$key"
-export BAO_SEAL_TYPE="aes-gcm"
 EOF
         
         chmod 600 "$ENV_FILE"
