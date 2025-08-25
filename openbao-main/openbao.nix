@@ -7,10 +7,20 @@ let
   # This wrapper script becomes the container's main entrypoint.
   # It exists to work around a hardcoded command and config path in the official Helm chart.
   wrapperEntrypoint = pkgs.writeShellScript "docker-entrypoint.sh" ''
-    #!/bin/sh
+    #!/bin/bash
     echo "Executing wrapper docker-entrypoint.sh to fix arguments..."
-    # We execute our real entrypoint, but let the helm chart provide the config path
-    exec /entrypoint.sh bao server "$@"
+    echo "Original args: $@"
+    
+    # The Helm chart mounts config to extraconfig-from-values.hcl
+    CONFIG_FILE="/openbao/config/extraconfig-from-values.hcl"
+    
+    if [ -f "$CONFIG_FILE" ]; then
+      echo "Using Helm-provided config: $CONFIG_FILE"
+      exec /entrypoint.sh bao server -config="$CONFIG_FILE"
+    else
+      echo "No Helm config found, trying to use provided args: $@"
+      exec /entrypoint.sh bao server "$@"
+    fi
   '';
   
   # Enhanced entrypoint script that sources environment from sidecar
@@ -42,10 +52,6 @@ let
         mkdir -p /openbao/data /openbao/logs /openbao/config /shared /tmp
         chown -R 1000:1000 /openbao 2>/dev/null || true
         chmod 1777 /tmp
-        
-        # Debug: Check if config file exists
-        echo "🔍 Checking for config file..."
-        ls -la /openbao/config/ || echo "Config directory doesn\'t exist"
         
         echo "👤 Switching to openbao user..."
         exec su-exec openbao "$@"
