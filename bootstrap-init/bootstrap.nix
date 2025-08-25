@@ -36,10 +36,10 @@ let
     fi
 
     echo "📖 Reading bootstrap seal key from Kubernetes secret..."
-    BOOTSTRAP_KEY=$(cat /bootstrap-secret/seal-key | base64 -d)
+    BOOTSTRAP_KEY=$(cat /bootstrap-secret/seal-key)
 
     if [ -z "$BOOTSTRAP_KEY" ]; then
-        echo "❌ Bootstrap key is empty after base64 decode"
+        echo "❌ Bootstrap key is empty"
         exit 1
     fi
 
