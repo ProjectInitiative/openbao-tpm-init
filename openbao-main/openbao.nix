@@ -40,16 +40,9 @@ let
     if [ "$(id -u)" = '0' ]; then
         echo "🔧 Setting up directory permissions as root..."
         
-        # Ensure openbao user exists
-        if ! getent passwd openbao >/dev/null; then
-            echo "👤 Creating openbao user..."
-            addgroup -g 1000 openbao || true
-            adduser -u 1000 -G openbao -s /bin/sh -D openbao || true
-        fi
-        
-        # Set up directories
+        # Set up directories (user already exists from etcFiles)
         mkdir -p /openbao/data /openbao/logs /shared /tmp
-        chown -R openbao:openbao /openbao/data /openbao/logs /shared 2>/dev/null || true
+        chown -R 1000:1000 /openbao/data /openbao/logs /shared 2>/dev/null || true
         chmod 1777 /tmp
         
         echo "👤 Switching to openbao user..."
