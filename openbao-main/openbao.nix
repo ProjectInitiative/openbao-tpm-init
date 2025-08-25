@@ -34,8 +34,9 @@ let
         fi
         
         # Set up directories
-        mkdir -p /openbao/data /openbao/logs /shared
+        mkdir -p /openbao/data /openbao/logs /shared /tmp
         chown -R openbao:openbao /openbao/data /openbao/logs /shared 2>/dev/null || true
+        chmod 1777 /tmp
         
         echo "👤 Switching to openbao user..."
         exec su-exec openbao "$@"
@@ -125,6 +126,7 @@ in pkgs.dockerTools.buildImage {
       # Create directory structure
       mkdir -p $out/openbao/{data,logs,config}
       mkdir -p $out/shared
+      mkdir -p $out/tmp
       
       # Copy default configuration
       cp ${defaultConfig} $out/openbao/config/bao.hcl
