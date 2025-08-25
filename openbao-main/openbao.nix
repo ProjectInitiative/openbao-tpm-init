@@ -100,6 +100,7 @@ in pkgs.dockerTools.buildImage {
         pkgs.shadow  # for adduser/addgroup
         pkgs.coreutils
         pkgs.bash
+        pkgs.gnused # Add sed
       ]}"
     ];
     WorkingDir = "/openbao";
@@ -120,6 +121,7 @@ in pkgs.dockerTools.buildImage {
       pkgs.shadow
       pkgs.coreutils
       pkgs.bash
+      pkgs.gnused # Add sed
       etcFiles  # Add pre-built /etc files
     ];
     postBuild = ''
