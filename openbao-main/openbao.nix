@@ -9,11 +9,9 @@ let
   wrapperEntrypoint = pkgs.writeShellScript "docker-entrypoint.sh" ''
     #!/bin/sh
     echo "Executing wrapper docker-entrypoint.sh to fix arguments..."
-    # We execute our real entrypoint, but pass the *correct* arguments,
-    # ignoring the incorrect ones from the Helm chart's command.
-    exec /entrypoint.sh bao server -config=/openbao/config/bao.hcl
+    # We execute our real entrypoint, but let the helm chart provide the config path
+    exec /entrypoint.sh bao server "$@"
   '';
-
   
   # Enhanced entrypoint script that sources environment from sidecar
   entrypoint = pkgs.writeShellScript "entrypoint.sh" ''
@@ -41,9 +39,13 @@ let
         echo "🔧 Setting up directory permissions as root..."
         
         # Set up directories (user already exists from etcFiles)
-        mkdir -p /openbao/data /openbao/logs /shared /tmp
-        chown -R 1000:1000 /openbao/data /openbao/logs /shared 2>/dev/null || true
+        mkdir -p /openbao/data /openbao/logs /openbao/config /shared /tmp
+        chown -R 1000:1000 /openbao 2>/dev/null || true
         chmod 1777 /tmp
+        
+        # Debug: Check if config file exists
+        echo "🔍 Checking for config file..."
+        ls -la /openbao/config/ || echo "Config directory doesn\'t exist"
         
         echo "👤 Switching to openbao user..."
         exec su-exec openbao "$@"
@@ -135,16 +137,15 @@ in pkgs.dockerTools.buildImage {
       mkdir -p $out/openbao/{data,logs,config}
       mkdir -p $out/shared
       mkdir -p $out/tmp
+      mkdir -p $out/usr/local/bin
       
-      # Copy default configuration
-      cp ${defaultConfig} $out/openbao/config/bao.hcl
+      # Don't copy default config - let Helm provide it via values
       
       # Copy our real entrypoint (now handled in postBuild instead of paths)
       cp ${entrypoint} $out/entrypoint.sh
       chmod +x $out/entrypoint.sh
 
       # Copy the wrapper entrypoint to the location the Helm chart expects
-      mkdir -p $out/usr/local/bin
       cp ${wrapperEntrypoint} $out/usr/local/bin/docker-entrypoint.sh
       chmod +x $out/usr/local/bin/docker-entrypoint.sh
     '';
