@@ -3,6 +3,17 @@
 let
   # OpenBao with HSM support
   openbao = pkgs.openbao.override { withHsm = true; };
+
+  # This wrapper script becomes the container's main entrypoint.
+  # It exists to work around a hardcoded command and config path in the official Helm chart.
+  wrapperEntrypoint = pkgs.writeShellScript "docker-entrypoint.sh" ''
+    #!/bin/sh
+    echo "Executing wrapper docker-entrypoint.sh to fix arguments..."
+    # We execute our real entrypoint, but pass the *correct* arguments,
+    # ignoring the incorrect ones from the Helm chart's command.
+    exec /entrypoint.sh bao server -config=/openbao/config/bao.hcl
+  '';
+
   
   # Enhanced entrypoint script that sources environment from sidecar
   entrypoint = pkgs.writeShellScript "entrypoint.sh" ''
@@ -133,9 +144,19 @@ in pkgs.dockerTools.buildImage {
       # Copy default configuration
       cp ${defaultConfig} $out/openbao/config/bao.hcl
       
-      # Copy entrypoint script
+      # Copy our real entrypoint
       cp ${entrypoint} $out/entrypoint.sh
       chmod +x $out/entrypoint.sh
+
+      # Copy the wrapper entrypoint to the location the Helm chart expects
+      mkdir -p $out/usr/local/bin
+      cp ${wrapperEntrypoint} $out/usr/local/bin/docker-entrypoint.sh
+      chmod +x $out/usr/local/bin/docker-entrypoint.sh
+
+      # Create a dummy docker-entrypoint.sh to satisfy the bao binary's expectations
+      mkdir -p $out/usr/local/bin
+      echo "#!/bin/sh\nexec \"\$@\"" > $out/usr/local/bin/docker-entrypoint.sh
+      chmod +x $out/usr/local/bin/docker-entrypoint.sh
     '';
   };
 }
