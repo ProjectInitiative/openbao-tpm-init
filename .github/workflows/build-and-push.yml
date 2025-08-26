@@ -21,22 +21,23 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v10
       
-      # - name: Setup Tailscale
-      #   uses: tailscale/github-action@v2
-      #   with:
-      #     oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-      #     oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-      #     tags: tag:ci
-      #     use-cache: 'true'
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          use-cache: 'true'
       
-      # - name: Setup Attic
-      #   run: |
-      #     nix profile install github:zhaofengli/attic
-      #     # echo '${{ secrets.ATTIC_CONFIG }}' > ~/.config/attic/config.toml
-      #     # Or configure via environment
-      #     export ATTIC_ENDPOINT=http://100.98.169.57:8080/github-ci
-      #     export ATTIC_TOKEN='${{ secrets.ATTIC_TOKEN }}'
-      #     attic login internal-cache || echo "Failed to connect to Attic cache, continuing without cache"
+      - name: Setup Attic
+        run: |
+          # nix profile install github:zhaofengli/attic
+          nix profile install nixpkgs#attic-client
+          # echo '${{ secrets.ATTIC_CONFIG }}' > ~/.config/attic/config.toml
+          # Or configure via environment
+          export ATTIC_ENDPOINT=http://100.98.169.57:8080/github-ci
+          export ATTIC_TOKEN='${{ secrets.ATTIC_TOKEN }}'
+          attic login github-ci $ATTIC_ENDPOINT $ATTIC_TOKEN || echo "Failed to connect to Attic cache, continuing without cache"
       
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
