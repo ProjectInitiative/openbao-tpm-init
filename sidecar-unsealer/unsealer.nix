@@ -97,28 +97,27 @@ EOF
         local required_healthy_cycles=6  # 3 minutes of consistent health
         
         while true; do
-            if is_vault_initialized; then
-                local seal_status=$(curl -s "''${VAULT_ADDR:-http://localhost:8200}/v1/sys/seal-status" 2>/dev/null || echo '{}')
-                local is_sealed=$(echo "$seal_status" | jq -r '.sealed // true')
-                
-                if [ "$is_sealed" = "false" ]; then
-                    healthy_count=$((healthy_count + 1))
-                    echo "✅ Vault healthy ($healthy_count/$required_healthy_cycles)" >&2
-                    
-                    if [ $healthy_count -ge $required_healthy_cycles ]; then
-                        echo "🎉 Cluster appears stable, initiating cleanup..." >&2
-                        cleanup_bootstrap_secret
-                        return 0
-                    fi
-                else
-                    healthy_count=0
-                    echo "⚠️ Vault is sealed, resetting health counter" >&2
+            local seal_status=$(curl -s "''${VAULT_ADDR:-http://localhost:8200}/v1/sys/seal-status" 2>/dev/null || echo '{}')
+            local initialized=$(echo "$seal_status" | jq -r '.initialized // false')
+            local sealed=$(echo "$seal_status" | jq -r '.sealed // true')
+
+            if [ "$initialized" = "true" ] && [ "$sealed" = "false" ]; then
+                healthy_count=$((healthy_count + 1))
+                echo "✅ Vault unsealed and healthy ($healthy_count/$required_healthy_cycles)" >&2
+
+                if [ $healthy_count -ge $required_healthy_cycles ]; then
+                    echo "🎉 Cluster appears stable, initiating cleanup..." >&2
+                    cleanup_bootstrap_secret
+                    return 0
                 fi
-            else
+            elif [ "$initialized" = "true" ] && [ "$sealed" = "true" ]; then
+                echo "⏳ Vault is initialized but still sealed (waiting for auto-unseal)..." >&2
                 healthy_count=0
-                echo "⚠️ Vault not initialized, waiting..." >&2
+            else
+                echo "⚠️ Vault not initialized yet, waiting..." >&2
+                healthy_count=0
             fi
-            
+
             sleep 30
         done
     }
