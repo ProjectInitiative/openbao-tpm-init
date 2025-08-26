@@ -1,68 +1,96 @@
 name: Build and Push Multi-Arch Containers
-
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
+      actions: write  # Required for cache purging
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
       - name: Install QEMU
         run: sudo apt-get update && sudo apt-get install -y qemu-user-static
-
+      
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v10
-
+      
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          use-cache: 'true'
+      
+      - name: Setup Attic
+        run: |
+          nix profile install github:zhaofengli/attic
+          # echo '${{ secrets.ATTIC_CONFIG }}' > ~/.config/attic/config.toml
+          # Or configure via environment
+          export ATTIC_ENDPOINT=http://100.98.169.57:8080/github-ci
+          export ATTIC_TOKEN='${{ secrets.ATTIC_TOKEN }}'
+          attic login internal-cache || echo "Failed to connect to Attic cache, continuing without cache"
+      
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
+      
       - name: Configure Nix for QEMU
         run: |
           echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
           echo "extra-sandbox-paths = /usr/bin/qemu-aarch64-static" | sudo tee -a /etc/nix/nix.conf
           sudo systemctl restart nix-daemon
-
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+      
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Generate lowercase repository owner name
         id: repo_owner
         run: echo "name=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
+      
       - name: Build and Push openbao-bootstrap-init
         run: |
+          nix build .#bootstrap-init
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             bootstrap-init \
             openbao-bootstrap-init \
             ${{ steps.repo_owner.outputs.name }}
-
+      
       - name: Build and Push openbao-unsealer-sidecar
         run: |
+          nix build .#unsealer-sidecar
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             unsealer-sidecar \
             openbao-unsealer-sidecar \
             ${{ steps.repo_owner.outputs.name }}
-
+      
       - name: Build and Push openbao-with-seal-support
         run: |
+          nix build .#openbao-main
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             openbao-main \
             openbao-with-seal-support \
             ${{ steps.repo_owner.outputs.name }}
+      
+      - name: Push to Attic cache
+        if: always()  # Push even if some builds failed
+        run: |
+          # Push all built derivations to your cache
+          nix build .#bootstrap-init .#unsealer-sidecar .#openbao-main --no-link
+          attic push internal-cache $(nix path-info --json .#bootstrap-init .#unsealer-sidecar .#openbao-main | jq -r '.[].path')
