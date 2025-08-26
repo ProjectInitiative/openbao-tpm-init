@@ -27,7 +27,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-          use-cache: 'true'
       
       - name: Setup Attic
         run: |
@@ -65,7 +64,7 @@ jobs:
       - name: Build and Push openbao-bootstrap-init
         run: |
           nix build .#bootstrap-init
-          # attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             bootstrap-init \
             openbao-bootstrap-init \
@@ -74,7 +73,7 @@ jobs:
       - name: Build and Push openbao-unsealer-sidecar
         run: |
           nix build .#unsealer-sidecar
-          # attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             unsealer-sidecar \
             openbao-unsealer-sidecar \
@@ -83,7 +82,7 @@ jobs:
       - name: Build and Push openbao-with-seal-support
         run: |
           nix build .#openbao-main
-          # attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
+          attic push internal-cache result || echo "Failed to push to Attic cache, continuing"
           nix run .#push-multi-arch -- \
             openbao-main \
             openbao-with-seal-support \
