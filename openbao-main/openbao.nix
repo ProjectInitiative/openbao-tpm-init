@@ -67,7 +67,7 @@ let
         chmod 1777 /tmp
         
         echo "👤 Switching to openbao user..."
-        exec su-exec openbao "$@"
+        exec su-exec openbao env BAO_SEAL_KEY="$BAO_SEAL_KEY" "$@"
     else
         echo "👤 Running as current user ($(whoami))"
         exec "$@"
