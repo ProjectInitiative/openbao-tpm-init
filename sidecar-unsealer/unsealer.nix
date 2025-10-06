@@ -7,6 +7,7 @@ let
     # unsealer-script.sh - TPM-based auto-unsealer sidecar
 
     set -euo pipefail
+    set -x
 
     TPM_STORE="''${TPM2_PKCS11_STORE:?}"
     PRIMARY_CTX_PATH="''${TPM_STORE}/primary.ctx"
@@ -58,7 +59,7 @@ let
         # Load the sealed object (no stdout leakage)
         if ! tpm2_load -T "$TSS2_TCTI" -C "$PRIMARY_CTX_PATH" \
             -u "$BOOTSTRAP_SEAL_PUB" -r "$BOOTSTRAP_SEAL_PRIV" \
-            -c "$sealed_ctx" >/dev/null; then
+            -c "$sealed_ctx"; then
             echo "❌ Failed to load sealed object" >&2
             return 1
         fi

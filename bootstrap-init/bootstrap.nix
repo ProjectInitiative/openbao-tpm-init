@@ -18,7 +18,16 @@ let
 
     echo "🔧 Starting bootstrap initialization..." >&2
 
-    # 1. Check if already initialized
+    # 1. Check if context is valid and clean up if not
+    if [ -f "$PRIMARY_CTX_PATH" ]; then
+        echo "ℹ️ Found existing primary context. Verifying with TPM..." >&2
+        if ! tpm2_readpublic -T "$TSS2_TCTI" -c "$PRIMARY_CTX_PATH" >/dev/null 2>&1; then
+            echo "⚠️ Primary context is invalid, possibly due to TPM reset. Cleaning up..." >&2
+            rm -rf "$TPM_STORE"/*
+        fi
+    fi
+
+    # 2. Check if already initialized
     if [ -f "$INIT_FLAG" ]; then
         echo "✅ Already initialized (found $INIT_FLAG), skipping..." >&2
         exit 0
