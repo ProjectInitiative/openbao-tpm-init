@@ -190,7 +190,7 @@ in pkgs.dockerTools.buildImage {
       ]}"
       "TSS2_TCTI=device:/dev/tpmrm0"
       "TPM2_PKCS11_STORE=/pkcs11-store"
-      "VAULT_ADDR=http://localhost:8200"
+      "VAULT_ADDR=http://[::1]:8200"
     ];
     WorkingDir = "/";
     User = "0";  # Run as root for TPM access and kubectl
