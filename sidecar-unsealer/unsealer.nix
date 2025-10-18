@@ -77,16 +77,18 @@ let
     # Inject seal key into OpenBao environment
     inject_seal_key() {
         local key="$1"
+        local b64_key=$(printf "%s" "$key" | base64 -w 0)
         
         echo "💉 Injecting seal key into OpenBao environment..." >&2
         mkdir -p "$(dirname "$ENV_FILE")"
         
         # Write environment file that OpenBao will source
         cat > "$ENV_FILE" << EOF
-export BAO_SEAL_KEY="$key"
+BAO_SEAL_TYPE="static"
+BAO_SEAL_KEY="$b64_key"
 EOF
         
-        chmod 600 "$ENV_FILE"
+        chmod 644 "$ENV_FILE"
         echo "✅ Seal key injected to $ENV_FILE" >&2
     }
 

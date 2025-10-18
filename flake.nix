@@ -73,6 +73,57 @@
               echo "🎉 All containers for ${system} built and loaded into Docker!"
             '');
           };
+          dev-push = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "dev-push" ''
+              set -e
+              INSECURE_REGISTRY=$1
+              if [ -z "$INSECURE_REGISTRY" ]; then
+                echo "Usage: $0 <insecure-registry>"
+                exit 1
+              fi
+              nix run .#push-insecure -- bootstrap-init openbao-bootstrap-init $INSECURE_REGISTRY
+              nix run .#push-insecure -- unsealer-sidecar openbao-unsealer-sidecar $INSECURE_REGISTRY
+              nix run .#push-insecure -- openbao-main openbao-with-seal-support $INSECURE_REGISTRY
+            '');
+          };
+          push-insecure = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "push-insecure" ''
+              set -e
+              set -o pipefail
+
+              PACKAGE_NAME=$1
+              IMAGE_NAME=$2
+              INSECURE_REGISTRY=$3
+              TAG=''${4:-latest}
+
+              if [ -z "$PACKAGE_NAME" ] || [ -z "$IMAGE_NAME" ] || [ -z "$INSECURE_REGISTRY" ]; then
+                echo "Usage: $0 <package-name> <image-name> <insecure-registry> [tag]"
+                exit 1
+              fi
+
+              SYSTEM="x86_64-linux"
+              ARCH="amd64"
+
+              echo "--- Building $PACKAGE_NAME for $SYSTEM ($ARCH) ---"
+              nix build ".#packages.$SYSTEM.$PACKAGE_NAME" -o "result-$PACKAGE_NAME-$ARCH"
+              
+              LOADED_IMAGE=$(docker load < "result-$PACKAGE_NAME-$ARCH" | grep "Loaded image" | sed 's/Loaded image: //')
+              echo "Loaded image: $LOADED_IMAGE"
+
+              TARGET_TAG="$INSECURE_REGISTRY/$IMAGE_NAME:$TAG"
+              echo "Tagging $LOADED_IMAGE as $TARGET_TAG"
+              docker tag "$LOADED_IMAGE" "$TARGET_TAG"
+              
+              echo "Pushing $TARGET_TAG"
+              docker push "$TARGET_TAG"
+
+              rm "result-$PACKAGE_NAME-$ARCH"
+
+              echo "✅ Successfully pushed image $TARGET_TAG"
+            '');
+          };
         }))
       ({
         "x86_64-linux" = {

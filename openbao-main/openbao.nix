@@ -32,7 +32,7 @@ let
       exec /entrypoint.sh bao server -config="$CONFIG_FILE"
     else
       echo "No Helm config found, trying to use provided args: $@"
-      exec /entrypoint.sh bao server "$@"
+      exec /entrypoint.sh "$@"
     fi
   '';
   
@@ -47,7 +47,7 @@ let
 
     ENV_FILE="/shared/openbao.env"
     echo "⏳ Waiting for seal key from sidecar at $ENV_FILE..."
-    while [ ! -f "$ENV_FILE" ]; do
+    while [ ! -s "$ENV_FILE" ]; do
       sleep 2
     done
     echo "✅ Seal key file found!"
@@ -65,11 +65,17 @@ let
         mkdir -p /openbao/data /openbao/logs /openbao/config /shared /tmp
         chown -R 1000:1000 /openbao 2>/dev/null || true
         chmod 1777 /tmp
+
+        # Write the seal key to a file
+        echo "$BAO_SEAL_KEY" | base64 -d > /tmp/bao_seal_key
+        chown 1000:1000 /tmp/bao_seal_key
         
         echo "👤 Switching to openbao user..."
-        exec su-exec openbao env BAO_SEAL_KEY="$BAO_SEAL_KEY" "$@"
+        exec su-exec openbao "$@"
     else
         echo "👤 Running as current user ($(whoami))"
+        # Write the seal key to a file
+        echo "$BAO_SEAL_KEY" | base64 -d > /tmp/bao_seal_key
         exec "$@"
     fi
   '';
