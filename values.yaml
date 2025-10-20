@@ -56,11 +56,11 @@ server:
           }
         }
         
-        # This seal is activated by the `BAO_SEAL_KEY` environment variable,
+        # This seal is activated by the presence of the key file,
         # which is provided by the unsealer-sidecar.
         seal "static" {
           current_key_id = "tpm-seal-key-1"
-          current_key = "env://BAO_SEAL_KEY?encoding=base64"
+          current_key_path = "/tmp/bao_seal_key"
         }
 
   # A persistent volume is required to store the TPM-encrypted seal key.

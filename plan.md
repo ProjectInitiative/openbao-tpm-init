@@ -391,6 +391,11 @@ server:
 
 This ensures the bootstrap secret isn't deleted while nodes are still joining.
 
+## Future Work
+
+- **Replace Sidecar with Init Container**: The current sidecar model works, but it leaves the container running. A better approach would be to use an init container to decrypt the key and pass it to the main container. This would prevent the bootstrap information from sitting around.
+- **Alternative to `kubectl`**: The `kubectl` commands within the sidecar are not functioning as expected. A more robust method for interacting with the Kubernetes API is needed for tasks like secret cleanup.
+
 ## Next Steps
 
 1. **Build bootstrap init container** with TPM encryption logic

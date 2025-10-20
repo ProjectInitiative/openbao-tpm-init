@@ -8,7 +8,7 @@ The architecture uses a bootstrap and sidecar pattern:
 
 1.  **Bootstrap Init Container**: A temporary init container that runs once to encrypt a master unsealing key using the node's TPM and stores it in a persistent volume.
 2.  **Unsealer Sidecar Container**: A sidecar container that runs alongside the OpenBao container. It decrypts the master key from the persistent volume using the TPM and provides it to the OpenBao container.
-3.  **OpenBao Main Container**: The main OpenBao container, which is configured to use the master key from the sidecar for auto-unsealing.
+3.  **OpenBao Main Container**: The main OpenBao container. Its entrypoint is modified to read the decrypted key from a file provided by the sidecar and use it for auto-unsealing.
 
 This approach ensures that the master unsealing key is only ever present in plaintext in the memory of the init container and the sidecar, and is otherwise always encrypted at rest.
 

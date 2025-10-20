@@ -99,9 +99,9 @@ EOF
         local required_healthy_cycles=6  # 3 minutes of consistent health
         
         while true; do
-            local seal_status=$(curl -s "''${VAULT_ADDR:-http://localhost:8200}/v1/sys/seal-status" 2>/dev/null || echo '{}')
-            local initialized=$(echo "$seal_status" | jq -r '.initialized // false')
-            local sealed=$(echo "$seal_status" | jq -r '.sealed // true')
+            local seal_status=$(curl -s "''${VAULT_ADDR:-http://[::1]:8200}/v1/sys/seal-status" || echo '{}')
+            local initialized=$(printf "%s" "$seal_status" | jq -r '.initialized')
+            local sealed=$(printf "%s" "$seal_status" | jq -r '.sealed')
 
             if [ "$initialized" = "true" ] && [ "$sealed" = "false" ]; then
                 healthy_count=$((healthy_count + 1))
@@ -163,6 +163,10 @@ EOF
         monitor_and_cleanup
         
         echo "✅ Sidecar job completed successfully" >&2
+
+        # Drop privileges and sleep forever
+        exec su-exec nobody sleep infinity
+
     }
 
     # Handle cleanup on exit
@@ -171,6 +175,14 @@ EOF
     main "$@"
   '';
 
+  etcFiles = pkgs.runCommand "unsealer-etc-files" {} ''
+    mkdir -p $out/etc
+    echo "root:x:0:0:root:/root:/bin/sh" > $out/etc/passwd
+    echo "nobody:x:65534:65534:nobody:/:/sbin/nologin" >> $out/etc/passwd
+    
+    echo "root:x:0:" > $out/etc/group
+    echo "nobody:x:65534:" >> $out/etc/group
+  '';
 in pkgs.dockerTools.buildImage {
   name = "openbao-unsealer-sidecar";
   tag = "latest";
@@ -187,6 +199,7 @@ in pkgs.dockerTools.buildImage {
         pkgs.gnugrep
         pkgs.gawk
         pkgs.bash
+        pkgs.su-exec
       ]}"
       "TSS2_TCTI=device:/dev/tpmrm0"
       "TPM2_PKCS11_STORE=/pkcs11-store"
@@ -208,6 +221,8 @@ in pkgs.dockerTools.buildImage {
       pkgs.gnugrep
       pkgs.gawk
       pkgs.bash
+      pkgs.su-exec
+      etcFiles
     ];
     postBuild = ''
       mkdir -p $out/pkcs11-store
