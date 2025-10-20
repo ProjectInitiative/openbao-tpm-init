@@ -6,7 +6,7 @@ let
     withHsm = true;
     withUi = true;
   }).overrideAttrs (old: rec {
-    version = "unstable-2025-08-25";
+    version = "2.4.1-unstable";
 
     src = pkgs.fetchFromGitHub {
       owner = "openbao";
@@ -128,7 +128,9 @@ in pkgs.dockerTools.buildImage {
   config = {
     Env = [
       "PATH=${pkgs.lib.makeBinPath [
-        openbao
+        pkgs.openbao
+        # Old override
+        # openbao
         pkgs.su-exec
         pkgs.shadow  # for adduser/addgroup
         pkgs.coreutils
@@ -149,7 +151,9 @@ in pkgs.dockerTools.buildImage {
     name = "openbao-root";
     paths = [
       # Core dependencies
-      openbao
+      pkgs.openbao
+      # Old override
+      # openbao
       pkgs.su-exec
       pkgs.shadow
       pkgs.coreutils
