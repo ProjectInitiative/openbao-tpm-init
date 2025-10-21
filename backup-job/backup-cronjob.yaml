@@ -1,0 +1,21 @@
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-backup
+spec:
+  schedule: "0 0 * * *" # Run once a day at midnight
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: openbao-backup
+          containers:
+          - name: openbao-backup
+            image: openbao-backup:latest # This should be replaced with the actual image name from your registry
+            env:
+            - name: BAO_ADDR
+              value: "http://openbao:8200"
+            - name: S3_BUCKET
+              value: "your-s3-bucket-name" # Replace with your S3 bucket name
+          restartPolicy: OnFailure

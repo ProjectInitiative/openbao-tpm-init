@@ -19,6 +19,7 @@
           bootstrap-init = import ./bootstrap-init/bootstrap.nix { inherit pkgs; };
           unsealer-sidecar = import ./sidecar-unsealer/unsealer.nix { inherit pkgs; };
           openbao-main = import ./openbao-main/openbao.nix { inherit pkgs; };
+          backup-job = import ./backup-job/backup.nix { inherit pkgs; };
         });
 
       apps = nixpkgs.lib.recursiveUpdate (forAllSystems (system:
@@ -62,6 +63,18 @@
               echo "✅ OpenBao main container for ${system} ready!"
             '');
           };
+          build-backup = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-backup" ''
+              set -e
+              echo "Building backup job container for ${system}..."
+              nix build ".#packages.${system}.backup-job" -o result-backup
+              echo "Loading into Docker..."
+              docker load < result-backup
+              rm result-backup
+              echo "✅ Backup job container for ${system} ready!"
+            '');
+          };
           build-all = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-all" ''
@@ -70,6 +83,7 @@
               nix run .#apps.${system}.build-bootstrap
               nix run .#apps.${system}.build-sidecar
               nix run .#apps.${system}.build-main
+              nix run .#apps.${system}.build-backup
               echo "🎉 All containers for ${system} built and loaded into Docker!"
             '');
           };
@@ -85,6 +99,7 @@
               nix run .#push-insecure -- bootstrap-init openbao-bootstrap-init $INSECURE_REGISTRY
               nix run .#push-insecure -- unsealer-sidecar openbao-unsealer-sidecar $INSECURE_REGISTRY
               nix run .#push-insecure -- openbao-main openbao-with-seal-support $INSECURE_REGISTRY
+              nix run .#push-insecure -- backup-job openbao-backup $INSECURE_REGISTRY
             '');
           };
           push-insecure = {
