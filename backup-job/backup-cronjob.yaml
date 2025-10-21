@@ -16,6 +16,24 @@ spec:
             env:
             - name: BAO_ADDR
               value: "http://openbao:8200"
-            - name: S3_BUCKET
-              value: "your-s3-bucket-name" # Replace with your S3 bucket name
+            - name: KEEP_DAILY
+              value: "7"
+            - name: KEEP_WEEKLY
+              value: "4"
+            - name: KEEP_MONTHLY
+              value: "6"
+            envFrom:
+            - secretRef:
+                name: restic-creds-k8s
+            volumeMounts:
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          volumes:
+          - name: secrets-store-inline
+            csi:
+              driver: secrets-store.csi.k8s.io
+              readOnly: true
+              volumeAttributes:
+                secretProviderClass: "openbao-restic-creds"
           restartPolicy: OnFailure

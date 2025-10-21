@@ -164,3 +164,89 @@ To enter a development shell with all the necessary tools, run:
 ```bash
 nix develop
 ```
+
+## Backup and Restore
+
+This repository includes a container for backing up OpenBao snapshots to an S3-compatible object store using `restic`. This provides a simple and effective way to ensure your OpenBao data is safe.
+
+We recommend using the [Kubernetes Secrets Store CSI driver](https://secrets-store-csi-driver.sigs.k8s.io/) to manage the credentials for the backup job. This approach is more secure and decouples the backup container from OpenBao.
+
+### Prerequisites
+
+*   [Kubernetes Secrets Store CSI driver](https://secrets-store-csi-driver.sigs.k8s.io/getting-started/installation.html) installed in your cluster.
+*   [OpenBao CSI provider](https://www.vaultproject.io/docs/platform/k8s/csi) installed in your cluster.
+
+### Building the Backup Container
+
+To build the backup container and load it into your local Docker daemon, run:
+
+```bash
+nix run .#build-backup
+```
+
+### Configuration
+
+To use the backup container, you will need to configure the following:
+
+1.  **OpenBao Secrets:** The backup job needs credentials for `restic`, your S3 provider, and an OpenBao token. These should be stored in OpenBao itself.
+
+    *   **Restic and S3 Credentials:** Create a secret in OpenBao at `secret/backup/restic` with the following keys:
+        *   `aws_access_key_id`: Your S3 access key.
+        *   `aws_secret_access_key`: Your S3 secret key.
+        *   `restic_repository`: The URL of your `restic` repository (e.g., `s3:https://s3.amazonaws.com/your-bucket-name`).
+        *   `restic_password`: The password for your `restic` repository.
+
+        You can create this secret with the following command:
+
+        ```bash
+        bao kv put secret/backup/restic \
+          aws_access_key_id="..." \
+          aws_secret_access_key="..." \
+          restic_repository="..." \
+          restic_password="..."
+        ```
+
+    *   **OpenBao Token:** Create a periodic token in OpenBao that the backup job can use to authenticate and create snapshots. The token should have policies that allow it to take snapshots.
+
+        ```bash
+        # Create a policy for the backup job
+        bao policy write backup - <<EOF
+        path "sys/storage/raft/snapshot" {
+          capabilities = ["read"]
+        }
+        EOF
+
+        # Create a periodic token with the backup policy
+        export BAO_TOKEN=$(bao token create -policy=backup -period=24h -format=json | jq -r .auth.client_token)
+
+        # Store the token in a secret
+        bao kv put secret/backup/token value=$BAO_TOKEN
+        ```
+
+2.  **Kubernetes Service Account:** Create a service account for the backup job:
+    ```bash
+    kubectl create serviceaccount openbao-backup -n openbao
+    ```
+
+3.  **OpenBao Kubernetes Auth:** Configure the OpenBao Kubernetes auth method to allow the `openbao-backup` service account to authenticate. You will need to create a role in OpenBao that is bound to this service account and has policies that allow it to read the `secret/backup/restic` and `secret/backup/token` secrets.
+
+### Deployment
+
+The `backup-job` directory contains the following files for deploying the backup job:
+
+*   `secret-provider-class.yaml`: Defines a `SecretProviderClass` that tells the CSI driver how to fetch the `restic` credentials from OpenBao.
+*   `backup-cronjob.yaml`: Defines a Kubernetes `CronJob` that runs the backup container.
+
+You can add these files to your ArgoCD application as a new source.
+
+For example, you can add the following to your ArgoCD `Application` manifest:
+
+```yaml
+    - repoURL: https://github.com/your-org/your-repo.git # Replace with your repo URL
+      targetRevision: HEAD
+      path: backup-job # Path to the directory containing the backup job manifests
+```
+
+You will also need to update the `backup-cronjob.yaml` to use the correct image name from your container registry and to set the desired schedule and pruning policy.
+
+**Note on Snapshot Creation:** The backup container expects the OpenBao snapshot to be available in a shared volume at `/path/to/shared/volume/bao-snapshot.snap`. A separate process should be responsible for creating the snapshot. We recommend using a sidecar container in the main OpenBao pod that periodically creates a snapshot and saves it to a shared volume that is also mounted by the backup CronJob.
