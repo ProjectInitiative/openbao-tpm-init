@@ -16,9 +16,44 @@
         "type": "github"
       }
     },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1764950072,
+        "narHash": "sha256-BmPWzogsG2GsXZtlT+MTcAWeDK5hkbGRZTeZNW42fwA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f61125a668a320878494449750330ca58b78c557",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "ops-utils": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1765064386,
+        "narHash": "sha256-LqZaNVwhhW/7TTkFjLLXBGVkhw5Qih7kcDvbOKHnOQI=",
+        "owner": "projectinitiative",
+        "repo": "ops-utils",
+        "rev": "d20ae7b0268d91560f50c5669e00c9b846882c71",
+        "type": "github"
+      },
+      "original": {
+        "owner": "projectinitiative",
+        "repo": "ops-utils",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "ops-utils": "ops-utils"
       }
     }
   },

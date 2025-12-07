@@ -3,9 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    ops-utils.url = "github:projectinitiative/ops-utils";
   };
 
-  outputs = { self, nixpkgs, ... }:
+  outputs = { self, nixpkgs, ops-utils,  ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -14,8 +15,10 @@
       packages = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          ops = ops-utils.lib.mkUtils { inherit pkgs; };
         in
         {
+          inherit (ops) build-image push-multi-arch;
           bootstrap-init = import ./bootstrap-init/bootstrap.nix { inherit pkgs; };
           unsealer-sidecar = import ./sidecar-unsealer/unsealer.nix { inherit pkgs; };
           openbao-main = import ./openbao-main/openbao.nix { inherit pkgs; };
@@ -25,8 +28,14 @@
       apps = nixpkgs.lib.recursiveUpdate (forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          ops = ops-utils.lib.mkUtils { inherit pkgs; };
+          opsApps = ops-utils.lib.mkApps { inherit pkgs; } ops;
+
         in
         {
+          inherit (opsApps) build-image push-multi-arch push-insecure;
+
+          # TODO: remove all of these in favor of build-image, imported above
           build-bootstrap = {
             type = "app";
             program = toString (pkgs.writeShellScript "build-bootstrap" ''
@@ -102,96 +111,8 @@
               nix run .#push-insecure -- backup-job openbao-backup $INSECURE_REGISTRY
             '');
           };
-          push-insecure = {
-            type = "app";
-            program = toString (pkgs.writeShellScript "push-insecure" ''
-              set -e
-              set -o pipefail
-
-              PACKAGE_NAME=$1
-              IMAGE_NAME=$2
-              INSECURE_REGISTRY=$3
-              TAG=''${4:-latest}
-
-              if [ -z "$PACKAGE_NAME" ] || [ -z "$IMAGE_NAME" ] || [ -z "$INSECURE_REGISTRY" ]; then
-                echo "Usage: $0 <package-name> <image-name> <insecure-registry> [tag]"
-                exit 1
-              fi
-
-              SYSTEM="x86_64-linux"
-              ARCH="amd64"
-
-              echo "--- Building $PACKAGE_NAME for $SYSTEM ($ARCH) ---"
-              nix build ".#packages.$SYSTEM.$PACKAGE_NAME" -o "result-$PACKAGE_NAME-$ARCH"
-              
-              LOADED_IMAGE=$(docker load < "result-$PACKAGE_NAME-$ARCH" | grep "Loaded image" | sed 's/Loaded image: //')
-              echo "Loaded image: $LOADED_IMAGE"
-
-              TARGET_TAG="$INSECURE_REGISTRY/$IMAGE_NAME:$TAG"
-              echo "Tagging $LOADED_IMAGE as $TARGET_TAG"
-              docker tag "$LOADED_IMAGE" "$TARGET_TAG"
-              
-              echo "Pushing $TARGET_TAG"
-              docker push "$TARGET_TAG"
-
-              rm "result-$PACKAGE_NAME-$ARCH"
-
-              echo "✅ Successfully pushed image $TARGET_TAG"
-            '');
-          };
-        }))
-      ({
-        "x86_64-linux" = {
-          push-multi-arch = {
-            type = "app";
-            program = let pkgs = nixpkgs.legacyPackages."x86_64-linux"; in toString (pkgs.writeShellScript "push-multi-arch" ''
-              set -e
-              set -o pipefail
-
-              PACKAGE_NAME=$1
-              IMAGE_NAME=$2
-              OWNER=$3
-              TAG=''${4:-latest}
-
-              if [ -z "$PACKAGE_NAME" ] || [ -z "$IMAGE_NAME" ] || [ -z "$OWNER" ]; then
-                echo "Usage: $0 <package-name> <image-name> <owner> [tag]"
-                exit 1
-              fi
-
-              MANIFEST_LIST=()
-              for ARCH_SYSTEM in ${builtins.toString systems}; do
-                # Derive arch from system string, e.g., x86_64-linux -> amd64
-                ARCH=$(echo "$ARCH_SYSTEM" | sed 's/-linux//' | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
-                
-                echo "--- Building $PACKAGE_NAME for $ARCH_SYSTEM ($ARCH) ---"
-                nix build ".#packages.$ARCH_SYSTEM.$PACKAGE_NAME" -o "result-$PACKAGE_NAME-$ARCH"
-                
-                LOADED_IMAGE=$(docker load < "result-$PACKAGE_NAME-$ARCH" | grep "Loaded image" | sed 's/Loaded image: //')
-                echo "Loaded image: $LOADED_IMAGE"
-
-                TARGET_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG-$ARCH"
-                echo "Tagging $LOADED_IMAGE as $TARGET_TAG"
-                docker tag "$LOADED_IMAGE" "$TARGET_TAG"
-                
-                echo "Pushing $TARGET_TAG"
-                docker push "$TARGET_TAG"
-
-                MANIFEST_LIST+=("$TARGET_TAG")
-                
-                rm "result-$PACKAGE_NAME-$ARCH"
-              done
-
-              MANIFEST_TAG="ghcr.io/$OWNER/$IMAGE_NAME:$TAG"
-              echo "--- Creating and pushing manifest for $MANIFEST_TAG ---"
-              echo "Manifest list: ''${MANIFEST_LIST[@]}"
-              docker manifest create "$MANIFEST_TAG" "''${MANIFEST_LIST[@]}"
-              docker manifest push "$MANIFEST_TAG"
-
-              echo "✅ Successfully pushed multi-arch image $MANIFEST_TAG"
-            '');
-          };
-        };
-      });
+        }));
+      
 
       devShells = forAllSystems (system:
         {
