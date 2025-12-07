@@ -25,7 +25,7 @@
           backup-job = import ./backup-job/backup.nix { inherit pkgs; };
         });
 
-      apps = nixpkgs.lib.recursiveUpdate (forAllSystems (system:
+      apps = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
           ops = ops-utils.lib.mkUtils { inherit pkgs; };
@@ -111,7 +111,7 @@
               nix run .#push-insecure -- backup-job openbao-backup $INSECURE_REGISTRY
             '');
           };
-        }));
+        });
       
 
       devShells = forAllSystems (system:
